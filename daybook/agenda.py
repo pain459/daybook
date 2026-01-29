@@ -77,3 +77,35 @@ def build_agenda_md(con: sqlite3.Connection, today: date) -> str:
         out.extend(rest)
         out.append("")
     return "\n".join(out).rstrip() + "\n"
+
+def build_day_summary(con, day: date) -> str:
+    rows = con.execute("""
+      SELECT status, COUNT(*) as c
+      FROM tasks
+      WHERE last_seen_date = ?
+      GROUP BY status
+    """, (day.isoformat(),)).fetchall()
+
+    counts = {r["status"]: r["c"] for r in rows}
+
+    done = counts.get("done", 0)
+    open_ = counts.get("open", 0)
+
+    # Pull 1 learning/log line if exists
+    row = con.execute("""
+      SELECT content
+      FROM docs
+      WHERE doc_date = ?
+        AND section IN ('Learnings','Log')
+      ORDER BY LENGTH(content) DESC
+      LIMIT 1
+    """, (day.isoformat(),)).fetchone()
+
+    key = row["content"].splitlines()[0] if row else None
+
+    out = ["# Summary (auto)"]
+    out.append(f"- Completed: {done} tasks")
+    out.append(f"- Open: {open_} tasks")
+    if key:
+        out.append(f"- Key note: {key}")
+    return "\n".join(out) + "\n"

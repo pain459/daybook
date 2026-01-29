@@ -215,6 +215,30 @@ def cmd_ask(args):
     ans = answer_with_context(args.query, ctx)
     print(ans)
 
+def cmd_close(args):
+    today = today_local()
+    fp = daily_path(today)
+
+    if not fp.exists():
+        print("Today's file not found.")
+        return
+
+    # sync first
+    cmd_sync(args)
+
+    from .agenda import build_day_summary
+    con = connect(str(DB_PATH))
+    summary = build_day_summary(con, today)
+
+    text = fp.read_text(encoding="utf-8")
+    if "# Summary (auto)" in text:
+        print("Summary already exists.")
+        return
+
+    fp.write_text(text.rstrip() + "\n\n" + summary, encoding="utf-8")
+    print("Day closed.")
+
+
 def main():
     parser = argparse.ArgumentParser(prog="daybook")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -237,6 +261,9 @@ def main():
     p_ask.add_argument("query")
     p_ask.add_argument("--k", type=int, default=6, help="Top K local chunks to send as context.")
     p_ask.set_defaults(func=cmd_ask)
+
+    p_close = sub.add_parser("close", help="Close the day: sync + auto summary.")
+    p_close.set_defaults(func=cmd_close)
 
     args = parser.parse_args()
     args.func(args)
